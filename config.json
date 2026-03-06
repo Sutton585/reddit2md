@@ -1,13 +1,13 @@
 {
     "global_defaults": {
-        "debug": true,
-        "data_directory": "data",
-        "output_directory": "data/markdown",
-        "scrape_log_path": "data/Scrape Log.md",
+        "debug": false,
+        "output_directory": "../../workspace/feeds/reddit",
+        "scrape_log_path": "../../workspace/data/reddit/scrape_log.md",
+        "data_directory": "../../workspace/data/reddit/",
         "generate_subreddit_folders": true,
         "min_post_age_hours": 12,
-        "min_score": 1,
-        "post_limit": 1,
+        "min_score": 20,
+        "post_limit": 3,
         "comment_detail": "MD",
         "filter_keywords": [],
         "url_blacklist": []
@@ -16,11 +16,14 @@
         {
             "name": "ArtificialInteligence",
             "sort": "new",
+            "post_limit": 2,
             "comment_detail": "SM"
         },
         {
-            "name": "ArtificialInteligence",
+            "name": "MachineLearning",
             "sort": "top",
+            "min_post_age_hours": 0,
+            "post_limit": 1,
             "comment_detail": "XL"
         }
     ]
