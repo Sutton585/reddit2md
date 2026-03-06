@@ -4,30 +4,61 @@ Digestitor is a professional-grade Reddit scraper designed for high-signal knowl
 Whether you are building a research database, feeding an AI agent, or just keeping up with specific subreddits, Digestitor provides the granularity and control needed for a high-quality data pipeline. It requires no external Python libraries, relying entirely on the Python standard library for maximum portability and security.
 
 ## System Overview and Core Logic
-Digestitor operates on a hierarchical model where data flows from Reddit's RSS and JSON APIs into local structured storage. The system is designed to be resilient, allowing users to manage their data directly through the file system. It maintains a local SQLite database that acts as a high-speed index, but the ultimate authority always rests with the Markdown files on your disk.
+Digestitor operates on a hierarchical model where data flows from Reddit's RSS and JSON APIs into local structured storage. The system is designed to be resilient, allowing users to manage their data directly through the file system.
 
-### Automated Folder Organization
-To keep your knowledge base clean, Digestitor automatically organizes generated Markdown files into subdirectories named after their respective subreddits. For example, a post from r/Python will be saved in `output_directory/Python/`.
+### The Multi-Layer Source of Truth
+Digestitor uses a tripartite authority model to ensure data integrity:
+- **Markdown Files (The Authority):** The ultimate source of truth. If you edit the `flair` or `rescrape_after` date in your Obsidian note, the system detects this on the next run and updates the database. Deleting a note tells the system to "forget" the post entirely.
+- **SQLite Database (The Memory):** Acts as a high-speed cache and state-tracker. It handles the logic for maturity delays and history. The DB is "self-healing"—if deleted, it will automatically rebuild itself by scanning your Markdown folders.
+- **JSON Archive (The Backup):** Stores sanitized data for every scrape. This allows for a total vault rebuild without re-querying Reddit if your Markdown files are ever lost.
 
-### Label Name Sanitization
-The system automatically sanitizes subreddit label names derived from Reddit flairs to ensure they are safe for all file systems. Any forward slashes (`/`) in a label name are replaced with dashes (`-`), preventing unintended nested directory creation.
+### Safe Vault Coexistence
+To allow Digestitor notes to live alongside your existing research, the system uses a surgical ownership check. It only processes files where the `post_id` in the front-matter is present. This prevents the scraper from ever touching unrelated Markdown files in the same directory.
 
-### The Source of Truth and Data Integrity
-The system follows a strict authority chain to resolve conflicts and ensure your edits are preserved. Individual Markdown files in your output directory hold the highest authority. If you modify the front-matter of a note—such as changing its project name or removing a scheduled re-scrape timestamp—Digestitor will detect these changes during its next run and update its internal database to match. 
+### Cumulative Knowledge (Living Notes)
+Standard scrapers overwrite files, losing previous data. Digestitor creates chronological records. When a post is re-scraped (e.g., after it "matures"):
+1. The front-matter is updated with the latest score and metadata.
+2. The old comment section is preserved.
+3. A new `## Updated Comments ([Timestamp])` section is **appended** to the bottom.
+This allows you to track how discussions evolve over time within a single note.
 
-If you delete a Markdown file, the system interprets this as a request to reset that post. It will purge the record from the database and the JSON archive, making the post eligible for a fresh scrape if it appears in the feed again. This allows for intuitive, no-code management of your scraped library.
-
-### Intelligent Re-scraping and Maturity
-Reddit threads are often most valuable once they have had time to "mature" with high-quality comments. Digestitor includes logic to handle early scrapes of new posts. If a post is scraped within a configurable time window (defaulting to 12 hours) of its creation, the system calculates a maturity timestamp and schedules a re-scrape. On the subsequent run after that timestamp has passed, Digestitor will fetch the updated thread, capturing the full depth of the conversation.
+### Context vs. Freshness: The Maturity Logic
+Scraping a thread the moment it is posted often misses the best discussion. Digestitor uses the `min_post_age_hours` setting to solve this. If a post is "young," it is scraped immediately for freshness, but marked as "Maturing." The system then automatically returns after the age threshold is met to append the final, mature conversation.
 
 ## Comprehensive Configuration Guide
 Every aspect of Digestitor can be controlled through the config file, the command line, or as a Python dependency.
 
 ### Post Limit
-The post limit setting determines the maximum number of new threads Digestitor will attempt to fetch from a subreddit's feed during a single run. 
-- In the config file, use "post_limit".
-- On the CLI, use --limit. 
-- In Python, pass 'post_limit' in the overrides dictionary.
+...
+### Flair
+This setting categorizes the post based on its source metadata (e.g., Reddit Flair).
+- In the config file, use "flair".
+- On the CLI, use --flair. 
+- In Python, pass 'flair' in the overrides dictionary.
+
+### Post Link
+This field in the front-matter contains links to external URLs or internal Obsidian links to related scraped posts.
+- In the config file, use "post_link".
+- On the CLI, use --post-link.
+- In Python, pass 'post_link' in the overrides dictionary.
+
+### Save JSON
+This toggle determines whether the sanitized JSON data fetched from Reddit is persisted to your data directory after the Markdown note is generated. Disabling this can save significant disk space if you only need the final notes.
+- In the config file, use "save_json".
+- On the CLI, use --save-json [True/False].
+- In Python, pass 'save_json' in the overrides dictionary.
+
+### Update Scrape Log
+This toggle controls whether the human-readable "Scrape Log.md" dashboard is updated during the run.
+- In the config file, use "update_log".
+- On the CLI, use --update-log [True/False].
+- In Python, pass 'update_log' in the overrides dictionary.
+
+### Maximum DB Records
+Since the database acts as an essential memory cache, it cannot be disabled. However, you can control its footprint using this setting. When the DB exceeds this limit, the oldest records are pruned (this does not touch your Markdown files).
+- In the config file, use "max_db_records".
+- On the CLI, use --max-records [Number].
+- In Python, pass 'max_db_records' in the overrides dictionary.
 
 ### Comment Detail Presets
 The system provides several presets to control the exact volume and depth of comments captured. This allows you to balance file size against the depth of the discussion.

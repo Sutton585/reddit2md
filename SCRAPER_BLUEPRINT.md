@@ -54,12 +54,20 @@ Data flows through three layers of increasing permanence:
 1. **JSON Archive (`/data/json/`):** The raw, cleaned data from the source. Used for AI processing or total rebuilds.
 2. **SQLite Index (`database.db`):** Tracks metadata, processing status, and file paths. Crucial for handling "maturing" content (re-scraping items after a delay).
 3. **Markdown Notes (`output_directory/`):** The final human-readable product. 
-    - **Entity Organization:** Files must be organized into subdirectories named after the source entity (e.g., `/SubredditName/`).
-    - **Atomic Naming:** Filenames should follow the pattern `[Project]_[ID].md` to ensure uniqueness and readability.
+    - **Entity Organization:** Files should be organized into subdirectories named after the source entity (e.g., `/SubredditName/`) if the toggle is enabled.
+    - **Atomic Naming:** Filenames should follow the pattern `[Subreddit]_[ID].md` to ensure uniqueness and portability.
+    - **Cumulative Content:** Updates to a note (e.g., when a post reaches maturity) should **append** new content (like updated comment sections) to the end of the existing file rather than overwriting it.
 
 ---
 
-## 5. Granular Control & Overrides
+## 5. Metadata and Nomenclature
+Standard field names must be used in front-matter and database columns:
+- **`flair`:** (Formerly `project`). Used to categorize the post within the source (e.g., Reddit Flair).
+- **`post_link`:** (Formerly `story_link`). Used to link to related internal notes or external URLs.
+
+---
+
+## 6. Granular Control & Overrides
 The orchestration layer assumes that any specific call can define its own target.
 - **Dynamic Pathing:** If a CLI command specifies `--output-dir`, the scraper must use that path for that specific run, even if a different path is defined in `config.json`.
 - **Precedence Order:** 

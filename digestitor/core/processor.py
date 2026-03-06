@@ -107,33 +107,37 @@ class PostProcessor:
                 post_id = reddit_id_match.group(1)
                 post = self.db_manager.get_post(post_id)
                 if post:
-                    # Obsidian internal link format
-                    project = post['project'] or "N/A"
-                    return f"[[{project}_{post_id}]]"
+                    # Obsidian internal link format: [Subreddit]_[post_id].md
+                    sub_clean = post['subreddit'][2:] if post['subreddit'].startswith('r/') else post['subreddit']
+                    filename = f"{sub_clean}_{post_id}"
+                    return f"[[{filename}]]"
             return url
 
         return re.sub(self.URL_REGEX, replace_link, text)
 
-    def generate_markdown(self, cleaned_post, rescrape_after=None):
+    def generate_markdown(self, cleaned_post, rescrape_after=None, is_update=False):
         post_id = cleaned_post['id']
         selftext = cleaned_post['selftext']
+        subreddit_name = cleaned_post['subreddit']
+        if subreddit_name.startswith('r/'):
+            subreddit_name = subreddit_name[2:]
         
         # Resolve internal links in selftext
         selftext = self.resolve_links(selftext)
 
         # Frontmatter Construction
-        flair = cleaned_post.get('link_flair_text')
-        project = "N/A"
+        flair_text = cleaned_post.get('link_flair_text')
+        flair = "N/A"
         post_type = "reddit-thread"
-        if flair:
-            if ':' in flair:
-                project = flair.split(':', 1)[0].strip()
+        if flair_text:
+            if ':' in flair_text:
+                flair = flair_text.split(':', 1)[0].strip()
             else:
-                project = flair
-            if "Weekly" in flair:
+                flair = flair_text
+            if "Weekly" in flair_text:
                 post_type = 'megathread'
 
-        # Story Link Processing
+        # Post Link Processing (formerly story_link)
         all_urls = []
         if cleaned_post.get('url_overridden_by_dest'):
             all_urls.append(cleaned_post['url_overridden_by_dest'])
@@ -143,18 +147,19 @@ class PostProcessor:
         unique_urls = sorted(list(set(all_urls)))
         filtered_urls = [url for url in unique_urls if not any(bl_item in url for bl_item in self.url_blacklist)]
         
-        # Resolve internal links in story links
-        resolved_story_links = []
+        # Resolve internal links in post links
+        resolved_post_links = []
         for url in filtered_urls:
             reddit_id_match = re.search(self.REDDIT_PERMALINK_REGEX, url)
             if reddit_id_match and self.db_manager:
                 target_post_id = reddit_id_match.group(1)
                 target_post = self.db_manager.get_post(target_post_id)
                 if target_post:
-                    target_project = target_post['project'] or "N/A"
-                    resolved_story_links.append(f"[[{target_project}_{target_post_id}]]")
+                    target_sub = target_post['subreddit'][2:] if target_post['subreddit'].startswith('r/') else target_post['subreddit']
+                    filename = f"{target_sub}_{target_post_id}"
+                    resolved_post_links.append(f"[[{filename}]]")
                     continue
-            resolved_story_links.append(url)
+            resolved_post_links.append(url)
 
         frontmatter = {
             'tags': '[reddit, scraped]',
@@ -166,14 +171,14 @@ class PostProcessor:
             'post_id': post_id,
             'score': cleaned_post['score'],
             'type': post_type,
-            'project': project,
+            'flair': flair,
         }
         
         if rescrape_after:
             frontmatter['rescrape_after'] = rescrape_after
             
-        if resolved_story_links:
-            frontmatter['story_link'] = ", ".join(resolved_story_links)
+        if resolved_post_links:
+            frontmatter['post_link'] = ", ".join(resolved_post_links)
 
         frontmatter_str = "---\n"
         for key, value in frontmatter.items():
@@ -194,7 +199,14 @@ class PostProcessor:
 
         comments_md = format_comments(cleaned_post['comments'], 0)
 
-        markdown_content = f"""{frontmatter_str}# {cleaned_post['title']}
+        if is_update:
+            # For updates, we return a block that will be appended
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            update_block = f"\n\n---\n## Updated Comments ({timestamp})\n\n{comments_md}"
+            return frontmatter_str, update_block, flair, subreddit_name
+        else:
+            # For initial scrape, return the full file
+            markdown_content = f"""{frontmatter_str}# {cleaned_post['title']}
 
 **Post Body:**
 {selftext}
@@ -203,6 +215,8 @@ class PostProcessor:
 ## Top Comments
 
 {comments_md}"""
-        # Sanitize project name for filename
-        safe_project = project.replace('/', '-')
-        return markdown_content, safe_project
+            return markdown_content, None, flair, subreddit_name
+
+        # Sanitize flair for filename (not used anymore, but good for safety)
+        safe_flair = flair.replace('/', '-')
+        return markdown_content, safe_flair

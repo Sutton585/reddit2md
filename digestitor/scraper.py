@@ -58,32 +58,41 @@ class RedditScraper:
                 file_path = os.path.join(root, filename)
                 frontmatter = processor.parse_frontmatter(file_path)
             
+                # Robust identification: Only process files with a post_id in frontmatter
                 if frontmatter and 'post_id' in frontmatter:
                     post_id = frontmatter['post_id']
                     if self.db_manager.post_exists(post_id):
                         continue
                         
-                    project = frontmatter.get('project', 'N/A')
+                    flair = frontmatter.get('flair', 'N/A')
                     author = frontmatter.get('author', 'N/A')
                     subreddit = frontmatter.get('subreddit', 'N/A')
                     score_str = frontmatter.get('score', '0')
                     score = int(score_str) if score_str.isdigit() else 0
                     post_date_str = frontmatter.get('post_date')
                     rescrape_after = frontmatter.get('rescrape_after')
-                    title = filename.replace(f"_{post_id}.md", "")
+                    
+                    # Extract title from the Markdown header if available, otherwise filename
+                    title = filename
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            for line in f:
+                                if line.startswith('# '):
+                                    title = line[2:].strip()
+                                    break
+                    except: pass
                     
                     try:
                         post_date = datetime.strptime(post_date_str, "%Y-%m-%d") if post_date_str else datetime.now()
                     except:
                         post_date = datetime.now()
                     
-                    json_path = os.path.join(self.json_dir, f"{post_id}.json")
-                    if os.path.exists(json_path):
-                        self.db_manager.add_or_update_post(
-                            post_id, title, author, subreddit, project, score, "rebuilt",
-                            post_date, file_path, first_scrape=True, rescrape_after=rescrape_after
-                        )
-                        rebuilt_count += 1
+                    # Add to DB (JSON dir is relative to data_dir)
+                    self.db_manager.add_or_update_post(
+                        post_id, title, author, subreddit, flair, score, "rebuilt",
+                        post_date, file_path, first_scrape=True, rescrape_after=rescrape_after
+                    )
+                    rebuilt_count += 1
         
         if rebuilt_count > 0:
             print(f"  Successfully rebuilt {rebuilt_count} records from Markdown files.")
@@ -168,6 +177,12 @@ class RedditScraper:
         if any_log_update:
             self.db_manager.export_to_markdown_log(final_log_path)
             
+        # Global DB pruning check (respecting the highest max_records in the current run)
+        max_records = 1000
+        for config in sources:
+            max_records = max(max_records, config.get('max_db_records', 1000))
+        self.db_manager.prune_old_records(max_records)
+
         print(f"\nFinished run. Total New: {new_posts_total}, Total Updated: {updated_posts_total}")
 
     def scrape_source(self, config):
@@ -210,14 +225,14 @@ class RedditScraper:
         if db_post and db_post['file_path'] and os.path.exists(db_post['file_path']):
             frontmatter = processor.parse_frontmatter(db_post['file_path'])
             if frontmatter:
-                user_project = frontmatter.get('project')
+                user_flair = frontmatter.get('flair')
                 user_rescrape = frontmatter.get('rescrape_after')
                 db_update_needed = False
-                current_project = db_post['project']
+                current_flair = db_post['flair']
                 current_rescrape = db_post['rescrape_after']
                 
-                if user_project and user_project != current_project:
-                    current_project = user_project
+                if user_flair and user_flair != current_flair:
+                    current_flair = user_flair
                     db_update_needed = True
                 
                 if current_rescrape and not user_rescrape:
@@ -226,19 +241,10 @@ class RedditScraper:
                     should_scrape = False
                 
                 if db_update_needed:
-                    new_file_path = db_post['file_path']
-                    if user_project and user_project != db_post['project']:
-                        new_filename = f"{user_project}_{post_id}.md"
-                        new_file_path = os.path.join(os.path.dirname(db_post['file_path']), new_filename)
-                        try:
-                            os.rename(db_post['file_path'], new_file_path)
-                        except:
-                            new_file_path = db_post['file_path']
-                    
                     self.db_manager.add_or_update_post(
                         post_id, db_post['title'], db_post['author'], db_post['subreddit'],
-                        current_project, db_post['score'], db_post['sort_method'],
-                        db_post['post_timestamp'], new_file_path,
+                        current_flair, db_post['score'], db_post['sort_method'],
+                        db_post['post_timestamp'], db_post['file_path'],
                         first_scrape=False, rescrape_after=current_rescrape
                     )
         
@@ -287,31 +293,45 @@ class RedditScraper:
                 rescrape_after = post_date + timedelta(hours=min_age_hours)
                 rescrape_after_iso = rescrape_after.isoformat()
 
-        markdown_content, project = processor.generate_markdown(cleaned_post, rescrape_after=rescrape_after_iso)
+        # Cumulative Update Check
+        is_update = not first_scrape and db_post and db_post['file_path'] and os.path.exists(db_post['file_path'])
         
-        # Organize into subreddits/folders
-        md_filename = f"{project}_{post_id}.md"
-        if config.get('generate_subreddit_folders', False):
-            subreddit_name = cleaned_post['subreddit']
-            if subreddit_name.startswith('r/'):
-                subreddit_name = subreddit_name[2:]
-            md_path = os.path.join(active_output_dir, subreddit_name, md_filename)
+        if is_update:
+            new_frontmatter, update_block, flair, subreddit_name = processor.generate_markdown(cleaned_post, rescrape_after=rescrape_after_iso, is_update=True)
+            
+            with open(db_post['file_path'], 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Update the frontmatter block
+            updated_content = re.sub(r'^---\n.*?\n---\n', new_frontmatter, content, flags=re.DOTALL)
+            
+            # Append the new comments
+            updated_content += update_block
+            
+            with open(db_post['file_path'], 'w', encoding='utf-8') as f:
+                f.write(updated_content)
+            md_path = db_post['file_path']
         else:
-            md_path = os.path.join(active_output_dir, md_filename)
-        
-        # Ensure the directory for the markdown file exists (in case project has slashes or is N/A)
-        os.makedirs(os.path.dirname(md_path), exist_ok=True)
-        
-        with open(md_path, 'w', encoding='utf-8') as f:
-            f.write(markdown_content)
+            markdown_content, _, flair, subreddit_name = processor.generate_markdown(cleaned_post, rescrape_after=rescrape_after_iso, is_update=False)
+            
+            # Filename: [Subreddit]_[ID].md
+            md_filename = f"{subreddit_name}_{post_id}.md"
+            
+            if config.get('generate_subreddit_folders', False):
+                md_path = os.path.join(active_output_dir, subreddit_name, md_filename)
+            else:
+                md_path = os.path.join(active_output_dir, md_filename)
+            
+            os.makedirs(os.path.dirname(md_path), exist_ok=True)
+            with open(md_path, 'w', encoding='utf-8') as f:
+                f.write(markdown_content)
 
-        # Database Toggle
-        if config.get('update_db', True):
-            self.db_manager.add_or_update_post(
-                post_id, cleaned_post['title'], cleaned_post['author'],
-                cleaned_post['subreddit'], project, score, config.get('sort', 'N/A'), post_date, md_path,
-                first_scrape=first_scrape, rescrape_after=rescrape_after_iso
-            )
+        # Database update is now mandatory for system logic
+        self.db_manager.add_or_update_post(
+            post_id, cleaned_post['title'], cleaned_post['author'],
+            cleaned_post['subreddit'], flair, score, config.get('sort', 'N/A'), post_date, md_path,
+            first_scrape=first_scrape, rescrape_after=rescrape_after_iso
+        )
 
         return True, first_scrape
 
@@ -344,9 +364,9 @@ def main():
     parser.add_argument("--log-path", help="Path to the Scrape Log markdown file.")
     parser.add_argument("--folders", type=str2bool, help="Whether to generate subreddit-specific folders.")
     
-    parser.add_argument("--save-json", type=str2bool, help="Whether to save the raw JSON file.")
+    parser.add_argument("--save-json", type=str2bool, help="Whether to save the sanitized JSON file.")
     parser.add_argument("--update-log", type=str2bool, help="Whether to update the scrape log.")
-    parser.add_argument("--update-db", type=str2bool, help="Whether to update the database.")
+    parser.add_argument("--max-records", type=int, help="Maximum number of records to keep in the DB cache.")
     
     args = parser.parse_args()
 
@@ -362,7 +382,7 @@ def main():
         'generate_subreddit_folders': args.folders,
         'save_json': args.save_json,
         'update_log': args.update_log,
-        'update_db': args.update_db
+        'max_db_records': args.max_records
     }
     
     if args.filter:

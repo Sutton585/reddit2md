@@ -16,7 +16,7 @@ class Config:
             "generate_subreddit_folders": False,
             "save_json": True,
             "update_log": True,
-            "update_db": True,
+            "max_db_records": 1000,
             "filter_keywords": ["[Marvel Rewatch]", "Weekly Free Talk"],
             "url_blacklist": ["reddit.com/r/marvelstudiosspoilers/wiki"]
         },
