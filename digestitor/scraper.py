@@ -121,12 +121,23 @@ class RedditScraper:
 
         new_posts_total = 0
         updated_posts_total = 0
+        
+        # Track if any source wants to update the log, and which log to update
+        final_log_path = self.scrape_log_path
+        any_log_update = False
 
         for source_config in sources:
             if not source_config: continue
             if overrides:
                 source_config.update({k: v for k, v in overrides.items() if v is not None})
             
+            # Behavioral check: log path can be overridden per source
+            if not self.debug and 'scrape_log_path' in source_config:
+                final_log_path = source_config['scrape_log_path']
+            
+            if source_config.get('update_log', True):
+                any_log_update = True
+
             new_count, updated_count = self.scrape_source(source_config)
             new_posts_total += new_count
             updated_posts_total += updated_count
@@ -154,7 +165,9 @@ class RedditScraper:
                 if success and not is_new:
                     updated_posts_total += 1
 
-        self.db_manager.export_to_markdown_log(self.scrape_log_path)
+        if any_log_update:
+            self.db_manager.export_to_markdown_log(final_log_path)
+            
         print(f"\nFinished run. Total New: {new_posts_total}, Total Updated: {updated_posts_total}")
 
     def scrape_source(self, config):
@@ -248,12 +261,23 @@ class RedditScraper:
 
         cleaned_post = processor.clean_json(raw_post_data, post_date)
         
-        os.makedirs(self.output_dir, exist_ok=True)
-        os.makedirs(self.json_dir, exist_ok=True)
+        # Dynamic Output Management
+        active_output_dir = self.output_dir
+        if not self.debug and 'output_directory' in config:
+            active_output_dir = config['output_directory']
+            
+        active_json_dir = self.json_dir
+        if not self.debug and 'data_directory' in config:
+            active_json_dir = os.path.join(config['data_directory'], "json")
 
-        json_path = os.path.join(self.json_dir, f"{post_id}.json")
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(cleaned_post, f, indent=2)
+        os.makedirs(active_output_dir, exist_ok=True)
+        os.makedirs(active_json_dir, exist_ok=True)
+
+        # JSON Toggle
+        if config.get('save_json', True):
+            json_path = os.path.join(active_json_dir, f"{post_id}.json")
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(cleaned_post, f, indent=2)
 
         rescrape_after_iso = None
         min_age_hours = config.get('min_post_age_hours', 12)
@@ -270,7 +294,7 @@ class RedditScraper:
         if subreddit_name.startswith('r/'):
             subreddit_name = subreddit_name[2:]
             
-        subreddit_dir = os.path.join(self.output_dir, subreddit_name)
+        subreddit_dir = os.path.join(active_output_dir, subreddit_name)
         os.makedirs(subreddit_dir, exist_ok=True)
         
         md_filename = f"{project}_{post_id}.md"
@@ -282,17 +306,29 @@ class RedditScraper:
         with open(md_path, 'w', encoding='utf-8') as f:
             f.write(markdown_content)
 
-        self.db_manager.add_or_update_post(
-            post_id, cleaned_post['title'], cleaned_post['author'],
-            cleaned_post['subreddit'], project, score, config.get('sort', 'N/A'), post_date, md_path,
-            first_scrape=first_scrape, rescrape_after=rescrape_after_iso
-        )
+        # Database Toggle
+        if config.get('update_db', True):
+            self.db_manager.add_or_update_post(
+                post_id, cleaned_post['title'], cleaned_post['author'],
+                cleaned_post['subreddit'], project, score, config.get('sort', 'N/A'), post_date, md_path,
+                first_scrape=first_scrape, rescrape_after=rescrape_after_iso
+            )
 
         return True, first_scrape
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 def main():
     parser = argparse.ArgumentParser(description="Digestitor v3.0: Granular Reddit-to-Markdown Scraper")
-    parser.add_argument("--debug", action="store_true", default=None, help="Enable debug mode (local data output).")
+    parser.add_argument("--debug", type=str2bool, nargs='?', const=True, default=None, help="Enable/disable debug mode (local data output).")
     parser.add_argument("--config", default="config.json", help="Path to config file.")
     parser.add_argument("--source", help="Run only a specific source (even if not in config).")
     
@@ -308,6 +344,10 @@ def main():
     parser.add_argument("--output-dir", help="Directory where Markdown files are saved.")
     parser.add_argument("--log-path", help="Path to the Scrape Log markdown file.")
     
+    parser.add_argument("--save-json", type=str2bool, help="Whether to save the raw JSON file.")
+    parser.add_argument("--update-log", type=str2bool, help="Whether to update the scrape log.")
+    parser.add_argument("--update-db", type=str2bool, help="Whether to update the database.")
+    
     args = parser.parse_args()
 
     overrides = {
@@ -318,7 +358,10 @@ def main():
         'min_post_age_hours': args.age,
         'data_directory': args.data_dir,
         'output_directory': args.output_dir,
-        'scrape_log_path': args.log_path
+        'scrape_log_path': args.log_path,
+        'save_json': args.save_json,
+        'update_log': args.update_log,
+        'update_db': args.update_db
     }
     
     if args.filter:
@@ -328,6 +371,7 @@ def main():
 
     scraper = RedditScraper(config_path=args.config, debug=args.debug)
     scraper.run(source_name=args.source, overrides=overrides)
+
 
 if __name__ == "__main__":
     main()

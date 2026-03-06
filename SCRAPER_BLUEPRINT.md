@@ -24,10 +24,11 @@ Used for persistent, automated workflows. It defines:
 Used for ad-hoc exploration or cron-job orchestration.
 - Must support `--source` for one-off scrapes of entities not in the config.
 - Must support explicit overrides for every parameter (e.g., `--limit`, `--output-dir`, `--detail`).
+- Must support behavioral toggles: `--save-json`, `--update-log`, and `--update-db` (Boolean).
 
 ### C. The Python Resource (Importable Module)
 Used for higher-level orchestration (AI agents, custom dashboards).
-- The main `Scraper` class must accept an `overrides` dictionary in its `run()` method to bypass any global or source-specific defaults.
+- The main `Scraper` class must accept an `overrides` dictionary in its `run()` method to bypass any global or source-specific defaults, including all path and behavioral settings.
 
 ---
 
@@ -39,7 +40,15 @@ Debug mode is the primary safety mechanism for development and troubleshooting.
 
 ---
 
-## 4. Output Structure & Data Flow
+## 4. Behavioral Toggles
+Scrapers must allow users to suppress side effects for specialized workflows:
+- **`save_json` (Boolean):** Whether to persist the raw JSON data after processing.
+- **`update_log` (Boolean):** Whether to append the run results to the human-readable Markdown log.
+- **`update_db` (Boolean):** Whether to record the scrape in the SQLite state database (useful for purely transient "view-only" scrapes).
+
+---
+
+## 5. Output Structure & Data Flow
 Data flows through three layers of increasing permanence:
 
 1. **JSON Archive (`/data/json/`):** The raw, cleaned data from the source. Used for AI processing or total rebuilds.

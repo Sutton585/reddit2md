@@ -13,6 +13,9 @@ class Config:
             "min_score": 50,
             "post_limit": 8,
             "comment_detail": "MD",
+            "save_json": True,
+            "update_log": True,
+            "update_db": True,
             "filter_keywords": ["[Marvel Rewatch]", "Weekly Free Talk"],
             "url_blacklist": ["reddit.com/r/marvelstudiosspoilers/wiki"]
         },
