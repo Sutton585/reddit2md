@@ -290,15 +290,14 @@ class RedditScraper:
         markdown_content, project = processor.generate_markdown(cleaned_post, rescrape_after=rescrape_after_iso)
         
         # Organize into subreddits/folders
-        subreddit_name = cleaned_post['subreddit']
-        if subreddit_name.startswith('r/'):
-            subreddit_name = subreddit_name[2:]
-            
-        subreddit_dir = os.path.join(active_output_dir, subreddit_name)
-        os.makedirs(subreddit_dir, exist_ok=True)
-        
         md_filename = f"{project}_{post_id}.md"
-        md_path = os.path.join(subreddit_dir, md_filename)
+        if config.get('generate_subreddit_folders', False):
+            subreddit_name = cleaned_post['subreddit']
+            if subreddit_name.startswith('r/'):
+                subreddit_name = subreddit_name[2:]
+            md_path = os.path.join(active_output_dir, subreddit_name, md_filename)
+        else:
+            md_path = os.path.join(active_output_dir, md_filename)
         
         # Ensure the directory for the markdown file exists (in case project has slashes or is N/A)
         os.makedirs(os.path.dirname(md_path), exist_ok=True)
@@ -343,6 +342,7 @@ def main():
     parser.add_argument("--data-dir", help="Consolidated directory for database and JSON archives.")
     parser.add_argument("--output-dir", help="Directory where Markdown files are saved.")
     parser.add_argument("--log-path", help="Path to the Scrape Log markdown file.")
+    parser.add_argument("--folders", type=str2bool, help="Whether to generate subreddit-specific folders.")
     
     parser.add_argument("--save-json", type=str2bool, help="Whether to save the raw JSON file.")
     parser.add_argument("--update-log", type=str2bool, help="Whether to update the scrape log.")
@@ -359,6 +359,7 @@ def main():
         'data_directory': args.data_dir,
         'output_directory': args.output_dir,
         'scrape_log_path': args.log_path,
+        'generate_subreddit_folders': args.folders,
         'save_json': args.save_json,
         'update_log': args.update_log,
         'update_db': args.update_db

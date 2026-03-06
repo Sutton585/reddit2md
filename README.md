@@ -209,3 +209,47 @@ Digestitor organizes its data into three main components. The markdown folder co
 
 ## Installation and First Run
 To get started, clone the repository to your local machine. Since Digestitor uses only the Python standard library, you do not need to install any external packages. Simply run python digestitor.py in your terminal. On the first run, if no config.json is found, the program will create a template for you. You can then edit this file to add your preferred subreddits and customize your settings.
+
+---
+## DOCUMENTATION UPDATES (FOR MANUAL INTEGRATION)
+The following blocks should be pasted into the corresponding sections of your README.md.
+
+### PASTE IN SECTION: "Comprehensive Configuration Guide" (After Scrape Log Path)
+### Subreddit Folders
+This toggle determines whether the system creates a sub-folder for each subreddit within your output directory. If disabled (default), all notes are saved directly into the output directory.
+- In the config file, use "generate_subreddit_folders".
+- On the CLI, use --folders [True/False].
+- In Python, pass 'generate_subreddit_folders' in the overrides dictionary.
+
+### Save JSON
+This toggle determines whether the sanitized JSON data fetched from Reddit is persisted to your data directory after the Markdown note is generated. Disabling this can save significant disk space if you only need the final notes.
+- In the config file, use "save_json".
+- On the CLI, use --save-json [True/False].
+- In Python, pass 'save_json' in the overrides dictionary.
+
+### Update Scrape Log
+This toggle controls whether the human-readable "Scrape Log.md" dashboard is updated during the run.
+- In the config file, use "update_log".
+- On the CLI, use --update-log [True/False].
+- In Python, pass 'update_log' in the overrides dictionary.
+
+### Update Database
+This toggle controls whether the scrape is recorded in the SQLite state database. Disabling this is useful for one-off, transient scrapes where you do not want to track maturity or prevent future re-scrapes.
+- In the config file, use "update_db".
+- On the CLI, use --update-db [True/False].
+- In Python, pass 'update_db' in the overrides dictionary.
+
+### PASTE IN SECTION: "System Overview and Core Logic" (New Subsection)
+### Project Name Sanitization
+The system automatically sanitizes project names derived from Reddit flairs to ensure they are safe for all file systems. Any forward slashes (`/`) in a project name are replaced with dashes (`-`), preventing unintended nested directory creation.
+
+### PASTE IN SECTION: "Debug Mode and Path Management" (Update CLI Example)
+#### 2. Via CLI (Ideal for quick overrides)
+You can force debug mode on or off from the terminal. Unlike standard flags, these accept explicit boolean values for maximum clarity in orchestration scripts.
+```bash
+# Run a safe test into local /data/ folder
+python digestitor.py --debug True
+
+# Run a live scrape into your configured production paths
+python digestitor.py --debug False
+```

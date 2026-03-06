@@ -13,6 +13,7 @@ class Config:
             "min_score": 50,
             "post_limit": 8,
             "comment_detail": "MD",
+            "generate_subreddit_folders": False,
             "save_json": True,
             "update_log": True,
             "update_db": True,

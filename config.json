@@ -4,6 +4,7 @@
         "data_directory": "data",
         "output_directory": "data/markdown",
         "scrape_log_path": "data/Scrape Log.md",
+        "generate_subreddit_folders": true,
         "min_post_age_hours": 12,
         "min_score": 1,
         "post_limit": 2,
