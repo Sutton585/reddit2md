@@ -1,0 +1,3 @@
+${indent}- ==**u/${author}** (Score: ${score})==
+${indent}	${body}
+${replies}

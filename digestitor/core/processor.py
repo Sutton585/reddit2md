@@ -3,6 +3,7 @@ import json
 import re
 import os
 from datetime import datetime
+from .theme_engine import ThemeEngine
 
 class PostProcessor:
     URL_REGEX = r'https?://[^\s)\]]+'
@@ -21,6 +22,10 @@ class PostProcessor:
         self.url_blacklist = url_blacklist or []
         self.comment_detail = comment_detail
         self.comment_limits = self.COMMENT_PRESETS.get(comment_detail, self.COMMENT_PRESETS['MD'])
+        
+        # Initialize Theme Engine
+        template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates')
+        self.theme_engine = ThemeEngine(template_dir)
 
     def clean_json(self, raw_post_data, post_date):
         post_data = raw_post_data[0]['data']['children'][0]['data']
@@ -115,6 +120,27 @@ class PostProcessor:
 
         return re.sub(self.URL_REGEX, replace_link, text)
 
+    def _render_comments_recursive(self, comments, depth):
+        """Internal helper to render the comments using the comment template."""
+        md = ""
+        for c in comments:
+            indent = '\t' * depth
+            body = c['body'].replace('\n', '\n' + '\t' * (depth + 1))
+            body = self.resolve_links(body)
+            
+            replies_md = ""
+            if c['replies']:
+                replies_md = self._render_comments_recursive(c['replies'], depth + 1)
+            
+            md += self.theme_engine.render('comment', 
+                indent=indent, 
+                author=c['author'], 
+                score=c['score'], 
+                body=body, 
+                replies=replies_md
+            )
+        return md
+
     def generate_markdown(self, cleaned_post, rescrape_after=None, is_update=False):
         post_id = cleaned_post['id']
         selftext = cleaned_post['selftext']
@@ -122,46 +148,39 @@ class PostProcessor:
         if subreddit_name.startswith('r/'):
             subreddit_name = subreddit_name[2:]
         
-        # Resolve internal links in selftext
         selftext = self.resolve_links(selftext)
 
-        # Frontmatter Construction
+        # Flair Logic
         flair_text = cleaned_post.get('link_flair_text')
         flair = "N/A"
         post_type = "reddit-thread"
         if flair_text:
-            if ':' in flair_text:
-                flair = flair_text.split(':', 1)[0].strip()
-            else:
-                flair = flair_text
+            flair = flair_text.split(':', 1)[0].strip() if ':' in flair_text else flair_text
             if "Weekly" in flair_text:
                 post_type = 'megathread'
 
-        # Post Link Processing (formerly story_link)
+        # Post Link Processing
         all_urls = []
         if cleaned_post.get('url_overridden_by_dest'):
             all_urls.append(cleaned_post['url_overridden_by_dest'])
-        body_urls = re.findall(self.URL_REGEX, cleaned_post['selftext'])
-        all_urls.extend(body_urls)
+        all_urls.extend(re.findall(self.URL_REGEX, cleaned_post['selftext']))
         
         unique_urls = sorted(list(set(all_urls)))
-        filtered_urls = [url for url in unique_urls if not any(bl_item in url for bl_item in self.url_blacklist)]
-        
-        # Resolve internal links in post links
         resolved_post_links = []
-        for url in filtered_urls:
+        for url in unique_urls:
+            if any(bl_item in url for bl_item in self.url_blacklist): continue
             reddit_id_match = re.search(self.REDDIT_PERMALINK_REGEX, url)
             if reddit_id_match and self.db_manager:
                 target_post_id = reddit_id_match.group(1)
                 target_post = self.db_manager.get_post(target_post_id)
                 if target_post:
                     target_sub = target_post['subreddit'][2:] if target_post['subreddit'].startswith('r/') else target_post['subreddit']
-                    filename = f"{target_sub}_{target_post_id}"
-                    resolved_post_links.append(f"[[{filename}]]")
+                    resolved_post_links.append(f"[[{target_sub}_{target_post_id}]]")
                     continue
             resolved_post_links.append(url)
 
-        frontmatter = {
+        # Prepare Frontmatter
+        fm_data = {
             'tags': '[reddit, scraped]',
             'source_url': f"https://reddit.com{cleaned_post['permalink']}",
             'subreddit': cleaned_post['subreddit'],
@@ -173,50 +192,25 @@ class PostProcessor:
             'type': post_type,
             'flair': flair,
         }
-        
-        if rescrape_after:
-            frontmatter['rescrape_after'] = rescrape_after
-            
-        if resolved_post_links:
-            frontmatter['post_link'] = ", ".join(resolved_post_links)
+        if rescrape_after: fm_data['rescrape_after'] = rescrape_after
+        if resolved_post_links: fm_data['post_link'] = ", ".join(resolved_post_links)
 
-        frontmatter_str = "---\n"
-        for key, value in frontmatter.items():
-            frontmatter_str += f"{key}: {value}\n"
-        frontmatter_str += "---\n"
+        frontmatter_str = "---\n" + "\n".join([f"{k}: {v}" for k, v in fm_data.items()]) + "\n---\n"
 
-        def format_comments(comments, depth):
-            md = ""
-            for c in comments:
-                indent = '\t' * depth
-                body = c['body'].replace('\n', '\n' + '\t' * (depth + 1))
-                # Resolve links in comment body
-                body = self.resolve_links(body)
-                md += f"{indent}- ==**u/{c['author']}** (Score: {c['score']})==\n{indent}\t{body}\n"
-                if c['replies']:
-                    md += format_comments(c['replies'], depth + 1)
-            return md
-
-        comments_md = format_comments(cleaned_post['comments'], 0)
+        # Prepare Comments
+        comments_md = self._render_comments_recursive(cleaned_post['comments'], 0)
 
         if is_update:
-            # For updates, we return a block that will be appended
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-            update_block = f"\n\n---\n## Updated Comments ({timestamp})\n\n{comments_md}"
+            update_block = self.theme_engine.render('update',
+                update_timestamp=datetime.now().strftime("%Y-%m-%d %H:%M"),
+                comments=comments_md
+            )
             return frontmatter_str, update_block, flair, subreddit_name
         else:
-            # For initial scrape, return the full file
-            markdown_content = f"""{frontmatter_str}# {cleaned_post['title']}
-
-**Post Body:**
-{selftext}
-
----
-## Top Comments
-
-{comments_md}"""
-            return markdown_content, None, flair, subreddit_name
-
-        # Sanitize flair for filename (not used anymore, but good for safety)
-        safe_flair = flair.replace('/', '-')
-        return markdown_content, safe_flair
+            full_content = self.theme_engine.render('note',
+                frontmatter=frontmatter_str,
+                title=cleaned_post['title'],
+                content=selftext,
+                comments=comments_md
+            )
+            return full_content, None, flair, subreddit_name
