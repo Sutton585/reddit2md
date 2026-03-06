@@ -120,7 +120,7 @@ Description: Presets to control the exact volume and depth of comments captured.
 - XS: Top 3 top-level comments, 0 replies (Literal: 3 total).
 - SM: Top 5 top-level comments, 1 reply each (Literal: 5 + 5 = 10 max).
 - MD (Default): Top 8 top-level comments, 2 replies each (Literal: 8 + 16 = 24 max).
-- LG: Top 10 top-level comments, 3 depth (3 replies, 1 sub-reply) (Literal: 10 + 30 + 10 = 50 max).
+- LG: Top 10 top-level comments, 3 depth (3 replies, 1 sub-reply) (Literal: 10 + 30 + 30 = 70 max).
 - XL: No limits. Recursively captures every single comment and reply.
 - Config: "comment_detail": "MD"
 - CLI: --detail MD
