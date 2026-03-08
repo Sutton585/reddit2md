@@ -64,12 +64,12 @@ class RedditScraper:
                     if self.db_manager.post_exists(post_id):
                         continue
                         
-                    flair = frontmatter.get('flair', 'N/A')
-                    author = frontmatter.get('author', 'N/A')
-                    subreddit = frontmatter.get('subreddit', 'N/A')
+                    flair = frontmatter.get('label', 'N/A')
+                    author = frontmatter.get('poster', 'N/A')
+                    subreddit = frontmatter.get('source', 'N/A')
                     score_str = frontmatter.get('score', '0')
                     score = int(score_str) if score_str.isdigit() else 0
-                    post_date_str = frontmatter.get('post_date')
+                    post_date_str = frontmatter.get('date_posted')
                     rescrape_after = frontmatter.get('rescrape_after')
                     
                     # Extract title from the Markdown header if available, otherwise filename
@@ -228,7 +228,7 @@ class RedditScraper:
         if db_post and db_post['file_path'] and os.path.exists(db_post['file_path']):
             frontmatter = processor.parse_frontmatter(db_post['file_path'])
             if frontmatter:
-                user_flair = frontmatter.get('flair')
+                user_flair = frontmatter.get('label')
                 user_rescrape = frontmatter.get('rescrape_after')
                 db_update_needed = False
                 current_flair = db_post['flair']
@@ -331,8 +331,8 @@ class RedditScraper:
 
         # Database update is now mandatory for system logic
         self.db_manager.add_or_update_post(
-            post_id, cleaned_post['title'], cleaned_post['author'],
-            cleaned_post['subreddit'], flair, score, config.get('sort', 'N/A'), post_date, md_path,
+            post_id, cleaned_post['title'], cleaned_post['poster'],
+            cleaned_post['source'], flair, score, config.get('sort', 'N/A'), post_date, md_path,
             first_scrape=first_scrape, rescrape_after=rescrape_after_iso
         )
 
@@ -349,7 +349,7 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 def main():
-    parser = argparse.ArgumentParser(description="Digestitor v3.0: Granular Reddit-to-Markdown Scraper")
+    parser = argparse.ArgumentParser(description="reddit2md v3.0: Granular Reddit-to-Markdown Scraper")
     parser.add_argument("--debug", type=str2bool, nargs='?', const=True, default=None, help="Enable/disable debug mode (local data output).")
     parser.add_argument("--config", default="config.json", help="Path to config file.")
     parser.add_argument("--subreddit", help="Run an ad-hoc call for a specific subreddit (even if not in config).")

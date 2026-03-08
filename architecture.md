@@ -1,10 +1,10 @@
-# Digestitor Architecture Document
+# reddit2md Architecture Document
 
 **Target Platform:** Reddit  
-**Module Name:** digestitor
+**Module Name:** reddit2md
 
 ## 1. Objective
-To build a professional-grade Reddit scraper designed for high-signal knowledge management. Digestitor transforms transient Reddit discussions into permanent, well-structured Markdown notes specifically optimized for Obsidian vaults, AI-automated workflows, and personalized daily digests.
+To build a professional-grade Reddit scraper designed for high-signal knowledge management. reddit2md transforms transient Reddit discussions into permanent, well-structured Markdown notes specifically optimized for Obsidian vaults, AI-automated workflows, and personalized daily digests.
 
 ## 2. Key Limitation & Technical Strategy
 **Limitation:** Scraping Reddit without Official API Access (No OAuth tokens).
@@ -66,4 +66,4 @@ When the Processor (`clean_json`) sanitizes the Reddit API response, it maps the
 - `metadata_label` -> Maps from `data['link_flair_text']` (Falls back to `subreddit_name_prefixed` if empty).
 - `comments` -> A custom recursive array of dictionaries containing the comment `author`, `score`, and `body` (strictly filtered to remove stickied, `[deleted]`, and `[removed]` entries).
 - `score` -> Maps from `data['score']` (Total upvotes).
-- `module` -> Set statically to `"digestitor"`.
+- `module` -> Set statically to `"reddit2md"`.

@@ -34,13 +34,13 @@ class PostProcessor:
         cleaned_post = {
             'id': post_data.get('id'),
             'title': post_data.get('title'),
-            'author': post_data.get('author'),
-            'subreddit': post_data.get('subreddit_name_prefixed'),
+            'poster': post_data.get('author'),
+            'source': post_data.get('subreddit_name_prefixed'),
             'permalink': post_data.get('permalink'),
             'selftext': post_data.get('selftext', ''),
             'score': post_data.get('score', 0),
             'post_timestamp': post_date.timestamp(),
-            'link_flair_text': post_data.get('link_flair_text'),
+            'label': post_data.get('link_flair_text'),
             'url_overridden_by_dest': post_data.get('url_overridden_by_dest'),
             'comments': self._process_comments_recursive(comments_data, 0)
         }
@@ -69,7 +69,7 @@ class PostProcessor:
         for c in valid_comments[:limit]:
             data = c['data']
             comment_item = {
-                'author': data.get('author', 'N/A'),
+                'poster': data.get('author', 'N/A'),
                 'score': data.get('score', 0),
                 'body': data.get('body', ''),
                 'replies': []
@@ -134,7 +134,7 @@ class PostProcessor:
             
             md += self.theme_engine.render('comment', 
                 indent=indent, 
-                author=c['author'], 
+                author=c['poster'], 
                 score=c['score'], 
                 body=body, 
                 replies=replies_md
@@ -144,14 +144,14 @@ class PostProcessor:
     def generate_markdown(self, cleaned_post, rescrape_after=None, is_update=False):
         post_id = cleaned_post['id']
         selftext = cleaned_post['selftext']
-        subreddit_name = cleaned_post['subreddit']
+        subreddit_name = cleaned_post['source']
         if subreddit_name.startswith('r/'):
             subreddit_name = subreddit_name[2:]
         
         selftext = self.resolve_links(selftext)
 
         # Flair Logic
-        flair_text = cleaned_post.get('link_flair_text')
+        flair_text = cleaned_post.get('label')
         flair = "N/A"
         post_type = "reddit-thread"
         if flair_text:
@@ -181,19 +181,18 @@ class PostProcessor:
 
         # Prepare Frontmatter
         fm_data = {
-            'tags': '[reddit, scraped]',
-            'source_url': f"https://reddit.com{cleaned_post['permalink']}",
-            'subreddit': cleaned_post['subreddit'],
-            'author': cleaned_post['author'],
-            'post_date': datetime.fromtimestamp(cleaned_post['post_timestamp']).strftime("%Y-%m-%d"),
-            'scrape_date': datetime.now().strftime("%Y-%m-%d"),
+            'post_URL': f"https://reddit.com{cleaned_post['permalink']}",
+            'source': cleaned_post['source'],
+            'poster': cleaned_post['poster'],
+            'date_posted': datetime.fromtimestamp(cleaned_post['post_timestamp']).strftime("%Y-%m-%d"),
+            'date_scraped': datetime.now().strftime("%Y-%m-%d"),
             'post_id': post_id,
             'score': cleaned_post['score'],
-            'type': post_type,
-            'flair': flair,
+            'module': 'reddit2md',
+            'label': flair,
         }
         if rescrape_after: fm_data['rescrape_after'] = rescrape_after
-        if resolved_post_links: fm_data['post_link'] = ", ".join(resolved_post_links)
+        if resolved_post_links: fm_data['post_links'] = ", ".join(resolved_post_links)
 
         frontmatter_str = "---\n" + "\n".join([f"{k}: {v}" for k, v in fm_data.items()]) + "\n---\n"
 
