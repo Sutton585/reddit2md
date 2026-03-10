@@ -12,6 +12,9 @@ except ImportError:
     _REQUESTS_AVAILABLE = False
 
 class RedditClient:
+    def __init__(self, verbose=2):
+        self.verbose = verbose
+
     HEADERS = {
         'User-Agent': 'python:sandman.reddit2md:v3.0 (by /u/sutton585)',
         'Accept': 'application/json, text/plain, */*',
@@ -28,14 +31,22 @@ class RedditClient:
             with request.urlopen(req) as response:
                 return response.read()
 
-    def get_posts_from_rss(self, rss_url, post_limit_per_feed):
-        print(f"Fetching RSS feed: {rss_url}")
+    def get_posts_from_rss(self, rss_url, post_limit_per_feed, offset=0):
+        if getattr(self, "verbose", 2) >= 2:
+            print(f"Fetching RSS feed: {rss_url}")
         try:
             xml_data = self._fetch_url(rss_url)
             ns = {'atom': 'http://www.w3.org/2005/Atom'}
             root = ET.fromstring(xml_data)
             posts = []
-            for i, entry in enumerate(root.findall('atom:entry', ns)):
+            
+            entries = root.findall('atom:entry', ns)
+            
+            # Apply offset to skip the first N items
+            if offset > 0:
+                entries = entries[offset:]
+
+            for i, entry in enumerate(entries):
                 if i >= post_limit_per_feed: break
                 id_tag, link_tag, updated_tag = entry.find('atom:id', ns), entry.find('atom:link', ns), entry.find('atom:updated', ns)
                 if all((id_tag is not None, link_tag is not None, updated_tag is not None)):
@@ -53,7 +64,8 @@ class RedditClient:
             return []
 
     def fetch_json_from_url(self, json_url):
-        print(f"Fetching JSON from: {json_url}")
+        if getattr(self, "verbose", 2) >= 2:
+            print(f"Fetching JSON from: {json_url}")
         try:
             if _REQUESTS_AVAILABLE:
                 response = requests.get(json_url, headers=self.HEADERS, timeout=15)

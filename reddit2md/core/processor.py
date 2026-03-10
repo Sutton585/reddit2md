@@ -156,7 +156,7 @@ class PostProcessor:
         post_type = "reddit-thread"
         if flair_text:
             label = flair_text.split(':', 1)[0].strip() if ':' in flair_text else flair_text
-            if "Weekly" in flair_text:
+            if "Recurring" in flair_text:
                 post_type = 'megathread'
 
         # Post Link Processing

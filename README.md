@@ -1,5 +1,5 @@
-# reddit2md: The Reddit to Markdown Digestor
-reddit2md is a professional-grade Reddit scraper designed for high-signal knowledge management. It transforms transient Reddit discussions into permanent, well-structured Markdown notes for use in Obsidian vaults, AI-automated workflows, and personalized daily digests.
+# reddit2md: The Reddit to Markdown collectionor
+reddit2md is a professional-grade Reddit scraper designed for high-signal knowledge management. It transforms transient Reddit discussions into permanent, well-structured Markdown notes for use in Obsidian vaults, AI-automated workflows, and personalized knowledge collections.
 
 Whether you are building a research database, feeding an AI agent, or just keeping up with specific subreddits, reddit2md provides the granularity and control needed for a high-quality data pipeline. It requires no external Python libraries, relying entirely on the Python standard library for maximum portability and security.
 
@@ -40,13 +40,13 @@ scraper.run(source="Python", overrides={'max_results': 5, 'detail': 'XL'})
 ```
 
 ### Using the Configuration File
-The config.yml file allows you to set global defaults and then define a list of specific tasks in the routine. This is the best way to manage a large list of scrape tasks for a daily digest. Note that you can have multiple tasks for the same subreddit with different settings.
+The config.yml file allows you to set global defaults and then define a list of specific tasks in the routine. This is the best way to manage a large list of scrape tasks for a knowledge collection. Note that you can have multiple tasks for the same subreddit with different settings.
 
 ```yaml
-global_defaults:
-  output_directory: "My Vault/Reddit"
+settings:
+  md_output_directory: "My Vault/Reddit"
   min_score: 50
-  data_directory: "data"
+  data_output_directory: "data"
   group_by_source: true
 
 routine:
@@ -93,23 +93,29 @@ Additionally, the system automatically sanitizes labels derived from Reddit flai
 The debug flag is a powerful safety toggle designed to protect your live data during testing. Its behavior is consistent across all interfaces.
 
 ### How Debug Mode Works
-- When Debug is TRUE (Default/Test State): All custom path settings for output_directory, data_directory, and scrape_log_path are ignored. The system forces all output into the local /data folder within the repository. This ensures that test runs do not pollute your Obsidian vault or live research database.
+- When Debug is TRUE (Default/Test State): All custom path settings for md_output_directory, data_output_directory, and md_log are ignored. The system forces all output into the local /data folder within the repository. This ensures that test runs do not pollute your Obsidian vault or live research database.
 - When Debug is FALSE (Production State): The system respects your custom path settings, allowing you to route Markdown notes and logs directly into your preferred workspace.
 
 ### Typical Workflow Example
 1. Test: Set "debug": true in your config. Experiment with new subreddits or detail settings. Verify the results in the local /data/markdown/ directory.
-2. Deploy: Once satisfied, set "debug": false and point your output_directory to the live directory, (ie. your Obsidian Vault). All future runs will now populate your vault with beautifully formatted notes organized by subreddit.
+2. Deploy: Once satisfied, set "debug": false and point your md_output_directory to the live directory, (ie. your Obsidian Vault). All future runs will now populate your vault with beautifully formatted notes organized by subreddit.
 
 ---
 
 ## 6. Automation: Set It and Forget It
-To maintain a fresh knowledge base, you can schedule reddit2md to run automatically. On macOS or Linux, you can use a cron job to trigger a scrape every morning at 8:00 AM:
+To maintain a fresh knowledge base, you can schedule reddit2md to run automatically. On macOS or Linux, you can use a cron job to trigger a scrape periodically:
 0 8 * * * cd /path/to/reddit2md && /usr/bin/python3 reddit2md.py --debug False
 
 ---
 
 ## 7. Comprehensive Configuration Reference
 Use this section as an encyclopedia for fine-tuning your data pipeline.
+
+### Console Output Level
+Description: Controls the verbosity of the terminal output during execution. 0 = Errors only, 1 = Progress & Warnings (Default), 2 = Granular Debugging.
+- Config: "verbose": 1
+- CLI: --verbose 1
+- Python: 'verbose': 1
 
 ### Post Limit
 Description: The maximum number of new threads reddit2md will attempt to fetch from a subreddit feed during a single run.
@@ -164,16 +170,27 @@ Description: Choice of sort determines the flavor of your research: new (Default
 - CLI: --sort new
 - Python: 'sort': 'new'
 
-### Minimum Post Age Hours
-Description: The window of time a post must exist before it is considered mature. Set to 0 to disable re-scraping logic entirely.
-- Config: "min_age_hours": 12
-- CLI: --min-age-hours 12
-- Python: 'min_age_hours': 12
+### Post Age Filtering (`min_age_hours` / `max_age_hours`)
+Sandman allows you to strictly filter out posts based on their age:
+- **`min_age_hours`**: The minimum age of a post to be considered relevant. Anything newer is entirely ignored.
+- **`max_age_hours`**: The maximum age of a post to be considered relevant. Posts older than this will not be scraped at all.
+
+### Maturity Logic (`rescrape_threshold_hours`)
+Description: The window of time a post must exist before it is considered mature. If a post is younger than this limit, it is scraped for freshness but marked for a later re-scrape. Set to 0 to disable re-scraping logic entirely.
+- Config: "rescrape_threshold_hours": 12
+- CLI: --rescrape-threshold-hours 12
+- Python: 'rescrape_threshold_hours': 12
+
+### Feed Pagination (`offset`)
+Description: Discards the first N results from the parsed Reddit RSS feed before the scraper begins processing them. Useful for picking up where a previous scrape left off.
+- Config: "offset": 10
+- CLI: --offset 10
+- Python: 'offset': 10
 
 ### Filter Keywords
 Description: Case-insensitive keywords. If any appear in a post title, the post is skipped.
 - Config: "blacklist_terms": ["word1", "word2"]
-- CLI: --blacklist-urls-terms "word1, word2"
+- CLI: --blacklist-terms "word1, word2"
 - Python: 'blacklist_terms': ["word1", "word2"]
 
 ### URL Blacklist

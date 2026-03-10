@@ -4,7 +4,7 @@
 **Module Name:** reddit2md
 
 ## 1. Objective
-To build a professional-grade Reddit scraper designed for high-signal knowledge management. reddit2md transforms transient Reddit discussions into permanent, well-structured Markdown notes specifically optimized for Obsidian vaults, AI-automated workflows, and personalized daily digests.
+To build a professional-grade Reddit scraper designed for high-signal knowledge management. reddit2md transforms transient Reddit discussions into permanent, well-structured Markdown notes specifically optimized for Obsidian vaults, AI-automated workflows, and personalized knowledge collections.
 
 ## 2. Key Limitation & Technical Strategy
 **Limitation:** Scraping Reddit without Official API Access (No OAuth tokens).
@@ -35,7 +35,7 @@ Strictly isolates network logic from data parsing:
 
 ### C. Processor (Data Sanitization & Translation)
 Translates the messy, deeply-nested Reddit JSON tree into the clean Sandman Standard Schema.
-- Extracts `link_flair_text` to use as the `metadata_label`.
+- Extracts `link_flair_text` to use as the `label`.
 - `_process_comments_recursive()`: Parses the complex recursive comment tree and filters it based on the user's `detail` preset (dropping removed/deleted comments).
 - `resolve_links()`: Uses regex (`REDDIT_PERMALINK_REGEX`) to identify links to other Reddit posts. If the target post exists in the `DatabaseManager`, it replaces the URL with an internal Obsidian link format (`[[Subreddit_ID]]`).
 - `parse_frontmatter()`: Reads existing `.md` files on disk to support the State Reconciliation Flow.
@@ -61,9 +61,9 @@ When the Processor (`clean_json`) sanitizes the Reddit API response, it maps the
 - `title` -> Maps from `data['title']`.
 - `author` -> Maps from `data['author']`.
 - `content` -> Maps from `data['selftext']`.
-- `time_scraped` -> Current local datetime.
-- `time_posted` -> Maps from `data['created_utc']` (Unix timestamp).
-- `metadata_label` -> Maps from `data['link_flair_text']` (Falls back to `subreddit_name_prefixed` if empty).
+- `date_scraped` -> Current local datetime.
+- `date_posted` -> Maps from `data['created_utc']` (Unix timestamp).
+- `label` -> Maps from `data['link_flair_text']` (Falls back to `subreddit_name_prefixed` if empty).
 - `comments` -> A custom recursive array of dictionaries containing the comment `author`, `score`, and `body` (strictly filtered to remove stickied, `[deleted]`, and `[removed]` entries).
 - `score` -> Maps from `data['score']` (Total upvotes).
 - `module` -> Set statically to `"reddit2md"`.

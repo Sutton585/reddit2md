@@ -1,4 +1,3 @@
-
 import sqlite3
 import os
 from datetime import datetime
@@ -16,7 +15,7 @@ class DatabaseManager:
                     id TEXT PRIMARY KEY,
                     title TEXT,
                     author TEXT,
-                    subreddit TEXT,
+                    source TEXT,
                     label TEXT,
                     score INTEGER,
                     sort_method TEXT,
@@ -33,6 +32,9 @@ class DatabaseManager:
             
             if 'project' in columns and 'label' not in columns:
                 cursor.execute("ALTER TABLE posts RENAME COLUMN project TO label")
+            
+            if 'subreddit' in columns and 'source' not in columns:
+                cursor.execute("ALTER TABLE posts RENAME COLUMN subreddit TO source")
             
             if 'score' not in columns:
                 cursor.execute("ALTER TABLE posts ADD COLUMN score INTEGER")
@@ -53,18 +55,18 @@ class DatabaseManager:
             cursor.execute('SELECT * FROM posts WHERE id = ?', (post_id,))
             return cursor.fetchone()
 
-    def add_or_update_post(self, post_id, title, author, subreddit, label, score, sort_method, post_timestamp, file_path, first_scrape=True, rescrape_after=None):
+    def add_or_update_post(self, post_id, title, author, source, label, score, sort_method, post_timestamp, file_path, first_scrape=True, rescrape_after=None):
         now = datetime.now()
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             if first_scrape:
                 cursor.execute('''
-                    INSERT INTO posts (id, title, author, subreddit, label, score, sort_method, post_timestamp, first_scrape_timestamp, last_scrape_timestamp, rescrape_after, file_path)
+                    INSERT INTO posts (id, title, author, source, label, score, sort_method, post_timestamp, first_scrape_timestamp, last_scrape_timestamp, rescrape_after, file_path)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         title=excluded.title,
                         author=excluded.author,
-                        subreddit=excluded.subreddit,
+                        source=excluded.source,
                         label=excluded.label,
                         score=excluded.score,
                         sort_method=excluded.sort_method,
@@ -72,14 +74,14 @@ class DatabaseManager:
                         last_scrape_timestamp=excluded.last_scrape_timestamp,
                         rescrape_after=excluded.rescrape_after,
                         file_path=excluded.file_path
-                ''', (post_id, title, author, subreddit, label, score, sort_method, post_timestamp, now, now, rescrape_after, file_path))
+                ''', (post_id, title, author, source, label, score, sort_method, post_timestamp, now, now, rescrape_after, file_path))
             else:
                 cursor.execute('''
                     UPDATE posts SET
-                        title = ?, author = ?, subreddit = ?, label = ?, score = ?, sort_method = ?, post_timestamp = ?,
+                        title = ?, author = ?, source = ?, label = ?, score = ?, sort_method = ?, post_timestamp = ?,
                         last_scrape_timestamp = ?, rescrape_after = ?, file_path = ?
                     WHERE id = ?
-                ''', (title, author, subreddit, label, score, sort_method, post_timestamp, now, rescrape_after, file_path, post_id))
+                ''', (title, author, source, label, score, sort_method, post_timestamp, now, rescrape_after, file_path, post_id))
             conn.commit()
 
     def get_all_posts(self):
@@ -120,7 +122,8 @@ class DatabaseManager:
             
             if count > max_records:
                 to_delete = count - max_records
-                print(f">>> Pruning {to_delete} oldest records from database cache...")
+                if getattr(self, "verbose", 2) >= 2:
+                    print(f"Pruning {to_delete} oldest records from database cache...")
                 # Delete oldest based on last_scrape_timestamp
                 cursor.execute('''
                     DELETE FROM posts WHERE id IN (
@@ -131,7 +134,7 @@ class DatabaseManager:
 
     def export_to_markdown_log(self, log_path):
         posts = self.get_all_posts()
-        header = "| Status | Flair | Title | Score | Sort | Post Date | Last Scrape | Re-scrape After |\n| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n"
+        header = "| Status | Label | Title | Score | Sort | Post Date | Last Scrape | Re-scrape After |\n| :| :| :| :| :| :| :| :|\n"
         rows = []
         for p in posts:
             # Determine status icon
@@ -148,9 +151,9 @@ class DatabaseManager:
                     status = "🔄 *Pending*"
                     rescrape_display = "**Ready Now**"
 
-            # Filename logic: [Subreddit]_[ID].md
-            sub_clean = p['subreddit'][2:] if p['subreddit'].startswith('r/') else p['subreddit']
-            filename = f"{sub_clean}_{p['id']}.md"
+            # Filename logic: [Source]_[ID].md
+            source_clean = p['source'][2:] if p['source'].startswith('r/') else p['source']
+            filename = f"{source_clean}_{p['id']}.md"
             title_link = f"[[{filename}|{p['title']}]]" if p['file_path'] else p['title']
             
             post_date = datetime.fromisoformat(p['post_timestamp']).strftime("%Y-%m-%d %H:%M") if p['post_timestamp'] else "N/A"
