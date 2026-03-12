@@ -113,9 +113,5 @@ To prevent excessive API abuse when using Category 3 parameters, `reddit2md` uti
 
 To keep this guide concise, power-user customization and architectural mappings are broken out into dedicated documentation files:
 
-### [The Configuration Reference](docs/CONFIGURATION_REFERENCE.md)
+### [The Configuration Reference](README_config_guide.md)
 The massive encyclopedia defining all 30+ parameters (like `db_limit`, `rescrape_newer_than_hours`, and `offset`), alongside the exact syntax for Lucene Search Operators and Maturity Logic.
-### [Template & Variable Expansion](docs/TEMPLATE_AND_VARIABLE_EXPANSION.md)
-A complete guide on how to design your own `post.template` files to strictly control the exact shape of your generated Markdown structure, including a list of all extractable JSON values (`${author_flair}`, `${upvote_ratio}`).
-### [Variable to Endpoint Mapping](docs/VARIABLE_TO_ENDPOINT_MAPPING.md)
-The deep-dive architectural map detailing precisely which variable correlates to Category 1, Category 2, or Category 3 filtering logic.

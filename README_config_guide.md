@@ -2,8 +2,6 @@
 
 This document serves as the encyclopedia for fine-tuning your data pipeline. You can use any of the below keys securely in your `config.yml` or through CLI arguments by converting snake_case parameter names to dash-case (e.g., `--ignore-older-than-hours`).
 
-For details on how these parameters map to exact URL endpoints and filtering categories, see the [Variable to Endpoint Mapping](VARIABLE_TO_ENDPOINT_MAPPING.md) guide.
-
 ---
 
 ## System & Scrape Logistics
