@@ -1,25 +1,22 @@
 settings:
-  blacklist_terms: []
-  blacklist_urls: []
   data_output_directory: ../../workspace/data/reddit/
   debug: false
   detail: MD
+  sort: new
   group_by_source: true
   max_results: 3
-  min_age_hours: 12
-  min_score: 20
   md_output_directory: ../../workspace/feeds/reddit
   md_log: ../../workspace/data/reddit/log.md
 
 routine:
-- detail: SM
+- name: "marvel"
+  detail: SM
   max_results: 2
-  min_score: 0
-  sort: new
-  source: ArtificialInteligence
-- detail: XL
+  subreddit: ["MarvelStudioSpoilers"]
+- name: "max"
+  subreddit: MarvelStudiosSpoilers
+- detail: LG
   max_results: 3
-  min_age_hours: 0
-  min_score: 2
-  sort: new
-  source: MarvelStudiosSpoilers
+  sources: 
+    - "Marvel comics"
+    - "MarvelStudiosSpoilers"

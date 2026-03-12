@@ -23,7 +23,18 @@ class DatabaseManager:
                     first_scrape_timestamp DATETIME,
                     last_scrape_timestamp DATETIME,
                     rescrape_after DATETIME,
-                    file_path TEXT
+                    file_path TEXT,
+                    json_path TEXT,
+                    ignored_reason TEXT,
+                    upvote_ratio REAL,
+                    num_comments INTEGER,
+                    domain TEXT,
+                    is_nsfw BOOLEAN,
+                    is_video BOOLEAN,
+                    is_gallery BOOLEAN,
+                    post_flair TEXT,
+                    selftext_snippet TEXT,
+                    comments_dump TEXT
                 )
             ''')
             # Schema Migration & Verification
@@ -40,6 +51,28 @@ class DatabaseManager:
                 cursor.execute("ALTER TABLE posts ADD COLUMN score INTEGER")
             if 'sort_method' not in columns:
                 cursor.execute("ALTER TABLE posts ADD COLUMN sort_method TEXT")
+            if 'json_path' not in columns:
+                cursor.execute("ALTER TABLE posts ADD COLUMN json_path TEXT")
+            if 'ignored_reason' not in columns:
+                cursor.execute("ALTER TABLE posts ADD COLUMN ignored_reason TEXT")
+            if 'upvote_ratio' not in columns:
+                cursor.execute("ALTER TABLE posts ADD COLUMN upvote_ratio REAL")
+            if 'num_comments' not in columns:
+                cursor.execute("ALTER TABLE posts ADD COLUMN num_comments INTEGER")
+            if 'domain' not in columns:
+                cursor.execute("ALTER TABLE posts ADD COLUMN domain TEXT")
+            if 'is_nsfw' not in columns:
+                cursor.execute("ALTER TABLE posts ADD COLUMN is_nsfw BOOLEAN")
+            if 'is_video' not in columns:
+                cursor.execute("ALTER TABLE posts ADD COLUMN is_video BOOLEAN")
+            if 'is_gallery' not in columns:
+                cursor.execute("ALTER TABLE posts ADD COLUMN is_gallery BOOLEAN")
+            if 'post_flair' not in columns:
+                cursor.execute("ALTER TABLE posts ADD COLUMN post_flair TEXT")
+            if 'selftext_snippet' not in columns:
+                cursor.execute("ALTER TABLE posts ADD COLUMN selftext_snippet TEXT")
+            if 'comments_dump' not in columns:
+                cursor.execute("ALTER TABLE posts ADD COLUMN comments_dump TEXT")
             conn.commit()
 
     def post_exists(self, post_id):
@@ -55,14 +88,16 @@ class DatabaseManager:
             cursor.execute('SELECT * FROM posts WHERE id = ?', (post_id,))
             return cursor.fetchone()
 
-    def add_or_update_post(self, post_id, title, author, source, label, score, sort_method, post_timestamp, file_path, first_scrape=True, rescrape_after=None):
+    def add_or_update_post(self, post_id, title, author, source, label, score, sort_method, post_timestamp, file_path, first_scrape=True, rescrape_after=None, json_path=None, ignored_reason=None, detailed_data=None):
         now = datetime.now()
+        d = detailed_data or {}
+        
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             if first_scrape:
                 cursor.execute('''
-                    INSERT INTO posts (id, title, author, source, label, score, sort_method, post_timestamp, first_scrape_timestamp, last_scrape_timestamp, rescrape_after, file_path)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO posts (id, title, author, source, label, score, sort_method, post_timestamp, first_scrape_timestamp, last_scrape_timestamp, rescrape_after, file_path, json_path, ignored_reason, upvote_ratio, num_comments, domain, is_nsfw, is_video, is_gallery, post_flair, selftext_snippet, comments_dump)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         title=excluded.title,
                         author=excluded.author,
@@ -73,15 +108,37 @@ class DatabaseManager:
                         post_timestamp=excluded.post_timestamp,
                         last_scrape_timestamp=excluded.last_scrape_timestamp,
                         rescrape_after=excluded.rescrape_after,
-                        file_path=excluded.file_path
-                ''', (post_id, title, author, source, label, score, sort_method, post_timestamp, now, now, rescrape_after, file_path))
+                        file_path=excluded.file_path,
+                        json_path=excluded.json_path,
+                        ignored_reason=excluded.ignored_reason,
+                        upvote_ratio=excluded.upvote_ratio,
+                        num_comments=excluded.num_comments,
+                        domain=excluded.domain,
+                        is_nsfw=excluded.is_nsfw,
+                        is_video=excluded.is_video,
+                        is_gallery=excluded.is_gallery,
+                        post_flair=excluded.post_flair,
+                        selftext_snippet=excluded.selftext_snippet,
+                        comments_dump=excluded.comments_dump
+                ''', (post_id, title, author, source, label, score, sort_method, post_timestamp, now, now, rescrape_after, file_path, json_path, ignored_reason,
+                      d.get('upvote_ratio'), d.get('num_comments'), d.get('domain'), d.get('is_nsfw'), d.get('is_video'), d.get('is_gallery'), d.get('post_flair'), d.get('selftext_snippet'), d.get('comments_dump')))
             else:
                 cursor.execute('''
                     UPDATE posts SET
                         title = ?, author = ?, source = ?, label = ?, score = ?, sort_method = ?, post_timestamp = ?,
-                        last_scrape_timestamp = ?, rescrape_after = ?, file_path = ?
+                        last_scrape_timestamp = ?, rescrape_after = ?, file_path = ?, json_path = ?, ignored_reason = ?,
+                        upvote_ratio = COALESCE(?, upvote_ratio),
+                        num_comments = COALESCE(?, num_comments),
+                        domain = COALESCE(?, domain),
+                        is_nsfw = COALESCE(?, is_nsfw),
+                        is_video = COALESCE(?, is_video),
+                        is_gallery = COALESCE(?, is_gallery),
+                        post_flair = COALESCE(?, post_flair),
+                        selftext_snippet = COALESCE(?, selftext_snippet),
+                        comments_dump = COALESCE(?, comments_dump)
                     WHERE id = ?
-                ''', (title, author, source, label, score, sort_method, post_timestamp, now, rescrape_after, file_path, post_id))
+                ''', (title, author, source, label, score, sort_method, post_timestamp, now, rescrape_after, file_path, json_path, ignored_reason,
+                      d.get('upvote_ratio'), d.get('num_comments'), d.get('domain'), d.get('is_nsfw'), d.get('is_video'), d.get('is_gallery'), d.get('post_flair'), d.get('selftext_snippet'), d.get('comments_dump'), post_id))
             conn.commit()
 
     def get_all_posts(self):
@@ -112,7 +169,7 @@ class DatabaseManager:
             conn.commit()
 
     def prune_old_records(self, max_records):
-        """Removes the oldest records from the database only (does not touch files)."""
+        """Removes the oldest records from the database and deletes associated JSON files."""
         if max_records <= 0: return
         
         with sqlite3.connect(self.db_path) as conn:
@@ -124,12 +181,27 @@ class DatabaseManager:
                 to_delete = count - max_records
                 if getattr(self, "verbose", 2) >= 2:
                     print(f"Pruning {to_delete} oldest records from database cache...")
-                # Delete oldest based on last_scrape_timestamp
+                
+                # First fetch the records so we can garbage collect the JSON files
                 cursor.execute('''
-                    DELETE FROM posts WHERE id IN (
-                        SELECT id FROM posts ORDER BY last_scrape_timestamp ASC LIMIT ?
-                    )
+                    SELECT id, json_path FROM posts 
+                    ORDER BY last_scrape_timestamp ASC LIMIT ?
                 ''', (to_delete,))
+                records_to_prune = cursor.fetchall()
+                
+                for record_id, json_path in records_to_prune:
+                    # Physically delete the JSON file if it exists
+                    if json_path and os.path.exists(json_path):
+                        try:
+                            os.remove(json_path)
+                            if getattr(self, "verbose", 2) >= 3:
+                                print(f"  Garbage Collected JSON: {json_path}")
+                        except Exception as e:
+                            print(f"  Failed to garbage collect {json_path}: {e}")
+                            
+                    # Delete the record from the database
+                    cursor.execute('DELETE FROM posts WHERE id = ?', (record_id,))
+                
                 conn.commit()
 
     def export_to_markdown_log(self, log_path):

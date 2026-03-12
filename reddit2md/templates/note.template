@@ -1,9 +1,0 @@
-${frontmatter}# ${title}
-
-**Post Body:**
-${content}
-
----
-## Top Comments
-
-${comments}

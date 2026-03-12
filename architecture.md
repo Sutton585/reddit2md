@@ -11,7 +11,7 @@ To build a professional-grade Reddit scraper designed for high-signal knowledge 
 - **Discovery via RSS:** Standard `.json` index feeds for subreddits are heavily rate-limited and cached when accessed without an API key. To bypass this, the Client uses Reddit's `.rss` endpoints (e.g., `reddit.com/r/python/new/.rss`) to discover new `post_id`s reliably.
 - **Deep Fetch via JSON:** Once a `post_id` is discovered via RSS, the Client fetches the full thread (including comments) using the individual post's `.json` endpoint (e.g., `reddit.com/comments/{post_id}.json`), which is less restricted.
 - **Graceful Degradation:** The network client gracefully detects if the external `requests` library is installed. If available, it utilizes `requests` to bypass advanced anti-bot measures (e.g., Reddit's 403 Forbidden blocks). If not, it falls back to the standard library `urllib`.
-- **Maturity Logic (The Living Note):** Implements a `min_age_hours` check. Threads scraped while young are marked as "Maturing" in the database. The Orchestrator returns after the age threshold to re-scrape and append the final, mature conversation, creating a chronological timeline.
+- **Maturity Logic (The Living Note):** Implements a `rescrape_newer_than_hours` check. Threads scraped while young are marked as "Maturing" in the database. The Orchestrator returns after the age threshold to re-scrape and append the final, mature conversation, creating a chronological timeline.
 - **Obsidian Graph Resolution:** Converts URLs pointing to other internal Reddit threads into Obsidian internal links (e.g., `[[Python_1rm32fu]]`).
 - **File System Sanitization:** Reddit flairs often include slashes (`/`). The Processor layer sanitizes these into dashes (`-`) to prevent unintended nested directory creation.
 
@@ -22,8 +22,8 @@ Handles configuration merging following the Precedence Order (CLI > Task-Specifi
 - `max_results` (Integer): Maximum threads to fetch per feed run.
 - `detail` (Enum: XS, SM, MD, LG, XL): Controls the depth and volume of captured comments (e.g., `MD` = Top 8 comments, 2 replies deep).
 - `sort` (Enum: new, hot, top, rising): Determines the targeted `.rss` endpoint.
-- `min_age_hours` (Integer): The delay for maturity logic. Set to 0 to disable.
-- `label`, `blacklist_terms`, `blacklist_urls`: Search and output filters.
+- `rescrape_newer_than_hours` (Integer): The delay for maturity logic. Set to 0 to disable.
+- `label`, `exclude_terms`, `exclude_urls`, `ignore_older_than_hours`: Search, URL, and local age filters (the Exclude vs Ignore paradigm).
 - `group_by_source` (Boolean): Organizes output dynamically.
 
 ### B. Client (Network Operations)

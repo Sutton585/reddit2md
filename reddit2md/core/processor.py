@@ -17,9 +17,9 @@ class PostProcessor:
         'XL': None # Special handling for "XL"
     }
 
-    def __init__(self, db_manager=None, blacklist_urls=None, detail='MD'):
+    def __init__(self, db_manager=None, ignore_urls=None, detail='MD'):
         self.db_manager = db_manager
-        self.blacklist_urls = blacklist_urls or []
+        self.ignore_urls = ignore_urls or []
         self.detail = detail
         self.comment_limits = self.COMMENT_PRESETS.get(detail, self.COMMENT_PRESETS['MD'])
         
@@ -31,16 +31,41 @@ class PostProcessor:
         post_data = raw_post_data[0]['data']['children'][0]['data']
         comments_data = raw_post_data[1]['data']['children']
 
+        source = post_data.get('subreddit_name_prefixed', '')
+        if source.startswith('r/'):
+            source = source[2:]
+
         cleaned_post = {
-            'id': post_data.get('id'),
+            'post_id': post_data.get('id'),
             'title': post_data.get('title'),
             'poster': post_data.get('author'),
-            'source': post_data.get('subreddit_name_prefixed'),
+            'source': source,
             'permalink': post_data.get('permalink'),
             'selftext': post_data.get('selftext', ''),
             'score': post_data.get('score', 0),
-            'post_timestamp': post_date.timestamp(),
-            'label': post_data.get('link_flair_text'),
+            
+            # Additional Interaction Metrics
+            'upvote_ratio': post_data.get('upvote_ratio', 0.0),
+            'num_comments': post_data.get('num_comments', 0),
+            
+            # Content Metadata
+            'domain': post_data.get('domain', ''),
+            'is_video': post_data.get('is_video', False),
+            'is_gallery': 'is_gallery' in post_data and post_data['is_gallery'],
+            'stickied': post_data.get('stickied', False),
+            'spoiler': post_data.get('spoiler', False),
+            'over_18': post_data.get('over_18', False),
+
+            # Author & Community
+            'author_flair': post_data.get('author_flair_text', ''),
+            'post_flair': post_data.get('link_flair_text', ''),
+            'subreddit_subscribers': post_data.get('subreddit_subscribers', 0),
+
+            # Timestamps
+            'created_utc': post_data.get('created_utc', 0.0),
+            'scraped_utc': post_date.timestamp(),
+
+            # Internal
             'url_overridden_by_dest': post_data.get('url_overridden_by_dest'),
             'comments': self._process_comments_recursive(comments_data, 0)
         }
@@ -142,22 +167,23 @@ class PostProcessor:
         return md
 
     def generate_markdown(self, cleaned_post, rescrape_after=None, is_update=False):
-        post_id = cleaned_post['id']
+        post_id = cleaned_post['post_id']
         selftext = cleaned_post['selftext']
         source = cleaned_post['source']
-        if source.startswith('r/'):
-            source = source[2:]
+        
+        # Format dates for template injection
+        cleaned_post['date_created'] = datetime.fromtimestamp(cleaned_post['created_utc']).strftime("%Y-%m-%d %H:%M")
+        cleaned_post['date_scraped'] = datetime.fromtimestamp(cleaned_post['scraped_utc']).strftime("%Y-%m-%d %H:%M")
+        cleaned_post['rescrape_after'] = f"rescrape_after: {rescrape_after}" if rescrape_after else ""
         
         selftext = self.resolve_links(selftext)
+        cleaned_post['selftext'] = selftext
 
-        # Flair Logic
-        flair_text = cleaned_post.get('label')
+        # Label extraction mapping
+        flair_text = cleaned_post.get('post_flair')
         label = "N/A"
-        post_type = "reddit-thread"
         if flair_text:
             label = flair_text.split(':', 1)[0].strip() if ':' in flair_text else flair_text
-            if "Recurring" in flair_text:
-                post_type = 'megathread'
 
         # Post Link Processing
         all_urls = []
@@ -168,48 +194,34 @@ class PostProcessor:
         unique_urls = sorted(list(set(all_urls)))
         resolved_post_links = []
         for url in unique_urls:
-            if any(bl_item in url for bl_item in self.blacklist_urls): continue
+            if any(bl_item in url for bl_item in self.ignore_urls): continue
             reddit_id_match = re.search(self.REDDIT_PERMALINK_REGEX, url)
             if reddit_id_match and self.db_manager:
                 target_post_id = reddit_id_match.group(1)
                 target_post = self.db_manager.get_post(target_post_id)
                 if target_post:
-                    target_sub = target_post['subreddit'][2:] if target_post['subreddit'].startswith('r/') else target_post['subreddit']
+                    target_sub = target_post['source'][2:] if target_post['source'].startswith('r/') else target_post['source']
                     resolved_post_links.append(f"[[{target_sub}_{target_post_id}]]")
                     continue
             resolved_post_links.append(url)
 
-        # Prepare Frontmatter
-        fm_data = {
-            'post_URL': f"https://reddit.com{cleaned_post['permalink']}",
-            'source': cleaned_post['source'],
-            'poster': cleaned_post['poster'],
-            'date_posted': datetime.fromtimestamp(cleaned_post['post_timestamp']).strftime("%Y-%m-%d"),
-            'date_scraped': datetime.now().strftime("%Y-%m-%d"),
-            'post_id': post_id,
-            'score': cleaned_post['score'],
-            'module': 'reddit2md',
-            'label': label,
-        }
-        if rescrape_after: fm_data['rescrape_after'] = rescrape_after
-        if resolved_post_links: fm_data['post_links'] = ", ".join(resolved_post_links)
-
-        frontmatter_str = "---\n" + "\n".join([f"{k}: {v}" for k, v in fm_data.items()]) + "\n---\n"
+        cleaned_post['post_links'] = f"\npost_links: {', '.join(resolved_post_links)}" if resolved_post_links else ""
 
         # Prepare Comments
         comments_md = self._render_comments_recursive(cleaned_post['comments'], 0)
+        cleaned_post['comment_section'] = comments_md
 
         if is_update:
+            # Generate the update block
             update_block = self.theme_engine.render('update',
                 update_timestamp=datetime.now().strftime("%Y-%m-%d %H:%M"),
                 comments=comments_md
             )
-            return frontmatter_str, update_block, label, source
+            # The python logic now natively expects the update block to be appended by the orchestrator
+            # We no longer hardcode frontmatter building natively here. 
+            return None, update_block, label, source
         else:
-            full_content = self.theme_engine.render('note',
-                frontmatter=frontmatter_str,
-                title=cleaned_post['title'],
-                content=selftext,
-                comments=comments_md
-            )
+            # Generate full note using the expanded payload dict
+            cleaned_post['update_section'] = "" # Blank out update macro on new creations
+            full_content = self.theme_engine.render('post', **cleaned_post)
             return full_content, None, label, source

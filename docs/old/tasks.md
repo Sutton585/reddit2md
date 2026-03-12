@@ -1,3 +1,24 @@
+---
+what I've done:
+    description: "I've made some changes myself to try to make it easier for you to focus on testing to ensure everything works, then refine our approach to documentation updates."
+    what I need:
+        - "read my explanation of what i changed" 
+        - "test that everything works according to how users would expect."
+        - "review the new file README_additions.md, expand upon areas that aren't properly addressed. README.md updates must account for all reddit2md functionality across the three interfaces. common use cases are used for helpful examples. Never rewrite the file, make a plan for surgical edits or insertions."
+    what has been done:
+        reddit2md/core/url_builder.py:
+        - "This is the entire new module. It has two URL modes: the original simple browse URL (zero behavior change for existing configs), and the new search endpoint mode that activates automatically when any advanced parameter is present."
+        - "The standalone test block at the bottom (python -m reddit2md.core.url_builder) runs 14 cases and passes all of them as far as i can tell. you might want more robust testing."
+        config.py:
+            "The only change is 6 new default keys added at the bottom of DEFAULT_CONFIG: query, label, exact_flair, time_filter, post_type, allow_nsfw. Everything else is identical."
+        scraper.py:
+            Two changes:
+                execute_task: "swaps out the old one-liner RSS URL for a call to self.url_builder.build_rss_url(...) — that's it for the core log"
+                The main() CLI parser: "this gets 6 new --argument entries with the comma-separated label → list handling"
+        README_additions.md: "this is a patch guide rather than a rewritten file, per our 'never completely rewrite' rule. It documents 6 surgical changes with exact locations and REPLACE / APPEND / INSERT_AFTER labels so you can revise and apply them."
+    One note on tasks.md step 3's instruction about removing config.py's old label behavior: "label was previously a post-fetch filter applied locally. With this refactor it now does double duty — it pre-filters at the URL level AND the frontmatter label field continues to work as before. No removal needed; the semantics just got richer."
+---
+
 # Reddit2MD Refactor Plan: Advanced Querying via RSS
 
 This document outlines the step-by-step plan for refactoring `reddit2md` to support robust, complex Reddit queries natively via the RSS URL generation process, without breaking existing core logic.

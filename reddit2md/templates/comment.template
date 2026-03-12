@@ -1,3 +1,11 @@
-${indent}- ==**u/${author}** (Score: ${score})==
-${indent}	${body}
+<!--
+AVAILABLE VARIABLES FOR SINGLE COMMENTS:
+${author}: The Reddit user who posted the comment
+${score}: The net upvotes minus downvotes
+${body}: The actual text of the comment
+${indent}: Automatically formatted tabs for nesting
+${replies}: The recursive nested tree of child comments
+-->
+${indent}- **${author}** (${score} pts):
+${indent}  ${body}
 ${replies}

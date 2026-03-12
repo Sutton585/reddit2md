@@ -31,7 +31,7 @@ class RedditClient:
             with request.urlopen(req) as response:
                 return response.read()
 
-    def get_posts_from_rss(self, rss_url, post_limit_per_feed, offset=0):
+    def get_posts_from_rss(self, rss_url, fetch_cap=100, offset=0):
         if getattr(self, "verbose", 2) >= 2:
             print(f"Fetching RSS feed: {rss_url}")
         try:
@@ -47,7 +47,7 @@ class RedditClient:
                 entries = entries[offset:]
 
             for i, entry in enumerate(entries):
-                if i >= post_limit_per_feed: break
+                if i >= fetch_cap: break
                 id_tag, link_tag, updated_tag = entry.find('atom:id', ns), entry.find('atom:link', ns), entry.find('atom:updated', ns)
                 if all((id_tag is not None, link_tag is not None, updated_tag is not None)):
                     try:

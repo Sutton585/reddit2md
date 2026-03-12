@@ -1,5 +1,10 @@
 
 ---
+<!--
+AVAILABLE VARIABLES FOR UPDATES:
+${update_timestamp}: The date the rescrape executed
+${comments}: The entire new comment tree block
+-->
 ## Updated Comments (${update_timestamp})
 
 ${comments}

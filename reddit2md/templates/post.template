@@ -1,0 +1,44 @@
+<!--
+AVAILABLE VARIABLES (You can place these anywhere in the YAML or Body below):
+${post_id}: Reddit's unique ID for the post
+${title}: The title of the post
+${score}: The net upvotes minus downvotes
+${upvote_ratio}: The percentage of upvotes (e.g., 0.95)
+${num_comments}: Total comments in the thread
+${poster}: The author's username
+${source}: The subreddit community (e.g., Python)
+${post_flair}: The post's categorizing flair
+${domain}: The out-link domain (e.g., github.com)
+${permalink}: The Reddit URL path for the thread
+${is_nsfw}: True if over 18
+${is_video}: True if post is a video
+${is_gallery}: True if multiple images
+${date_created}: Date the post was submitted (YYYY-MM-DD HH:MM)
+${date_scraped}: Date the script executed (YYYY-MM-DD HH:MM)
+-->
+---
+# Change the key names below to match your Obsidian vault's standards
+post_URL: https://reddit.com${permalink}
+community: ${source}
+flair: ${post_flair}
+date_created: ${date_created}
+date_scraped: ${date_scraped}
+post_id: ${post_id}
+score: ${score}
+upvote_ratio: ${upvote_ratio}
+comments_count: ${num_comments}
+is_nsfw: ${over_18}${rescrape_after}${post_links}
+tags: 
+  - reddit
+  - ${source}
+---
+# ${title}
+
+${selftext}
+
+---
+## Top Comments
+
+${comment_section}
+
+${update_section}
