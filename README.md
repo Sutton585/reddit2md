@@ -49,6 +49,24 @@ routine:
     detail: "XL" # Deep comment tree extraction
 ```
 
+### Python Example
+Because `reddit2md` isolates its scraping logic from the CLI layer, you can easily import it as a standard library dependency in your own Sandman scripts. All configuration settings are passed via an `overrides` dictionary:
+
+```python
+from reddit2md.scraper import RedditScraper
+
+# Initialize and run a headless backend scrape directly into SQLite DB
+scraper = RedditScraper()
+scraper.run(overrides={
+    "source": "MachineLearning",
+    "search": "transformer OR LLM",
+    "track": True,
+    "detailed_db": True,
+    "save_md": False,
+    "save_json": False
+})
+```
+
 ---
 
 ## The Three Tiers of Querying & Filtering
